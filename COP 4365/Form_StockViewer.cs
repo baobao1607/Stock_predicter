@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using System.Windows.Forms.VisualStyles;
@@ -40,6 +41,7 @@ namespace COP_4365
         {
             // intialize neccessary components for the form to start
             InitializeComponent();
+            initialize_combo_box_day();
             // initialize the list of recognizer by calling intialize_list_of_recognize
             initialize_dictionary_of_recognizer();
             // assign the start time to the input datetime start parameters
@@ -66,6 +68,7 @@ namespace COP_4365
         {
             // this code initialize all the componenets and properties needed for the form to work. These componenets and properties are set up on the designer file
             InitializeComponent();
+            initialize_combo_box_day();
             //intialize a list of recognizer by calling the method intialize_list_of_recognizer
             initialize_dictionary_of_recognizer();
             // Intialize the variable "list_of_candlestick" stored in Form_Stock viewer class with a capacity of 1024 items max.
@@ -530,6 +533,105 @@ namespace COP_4365
             }
             // add the annotation to the collection of the annotations
             chart_candlestick_OHLCV.Annotations.Add(arrowAnnotation);
+        }
+
+
+        private void initialize_combo_box_day()
+        {
+            comboBox1.Items.Add("5");
+            comboBox1.Items.Add("10");
+        }
+
+        private void button_Predict_Click(object sender, EventArgs e)
+        {
+            if (!int.TryParse(comboBox1.SelectedItem?.ToString(), out int daysToConsider))
+            {
+                MessageBox.Show("Please select a valid number of days.");
+                return;
+            }
+            int stock_count = list_of_smartCandlesticks.Count;
+            int start_index = Math.Max(stock_count - 10, 0);
+            int stock_traverse_count = stock_count - start_index;
+            int sum_day = stock_traverse_count * (stock_traverse_count + 1) / 2;
+            decimal sum_close_price = 0;
+            decimal sum_close_price_squared = 0;
+            decimal sum_close_price_times_day = 0;
+            for (int i = start_index; i < stock_count; i++) 
+            {
+                var cs = list_of_candlesticks[i];
+                sum_close_price += cs.close;
+                sum_close_price_squared += cs.close * cs.close;
+                int day = i - start_index + 1;
+                sum_close_price_times_day += day * cs.close;
+            }
+            decimal m = (stock_traverse_count * sum_close_price_times_day - sum_day * sum_close_price) /
+                 (stock_traverse_count * sum_close_price_squared - (sum_close_price * sum_close_price));
+            decimal b = (sum_close_price - m * sum_day) / stock_traverse_count;
+            DateTime last_date = list_of_candlesticks[list_of_candlesticks.Count - 1].date;
+            chart_candlestick_OHLCV.Series.Clear();
+            List<decimal> all_close_price = new List<decimal>();
+            // Create a series for actual closing prices
+            var actualSeries = new Series("Actual Closing Prices")
+            {
+                ChartType = SeriesChartType.Line
+            };
+
+            // Add the last closing prices to the chart
+            int actualStartIndex = Math.Max(stock_count - 10, 0);
+            for (int i = actualStartIndex; i < stock_count; i++)
+            {
+                var cs = list_of_smartCandlesticks[i];
+                actualSeries.Points.AddXY(cs.date, cs.close);
+                all_close_price.Add(cs.close);
+            }
+
+            // Create a series for predicted closing prices
+            var predictedSeries = new Series("Predicted Closing Prices")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Red // Different color for predictions
+            };
+
+            // Add predicted closing prices to the chart
+            for (int i = 1; i <= daysToConsider; i++)
+            {
+                decimal predictedClosePrice = m * (stock_traverse_count + i) + b;
+                predictedSeries.Points.AddXY(last_date.AddDays(i), predictedClosePrice);
+                all_close_price.Add(predictedClosePrice);
+            }
+
+            // Add both series to the chart
+            chart_candlestick_OHLCV.Series.Add(actualSeries);
+            chart_candlestick_OHLCV.Series.Add(predictedSeries);
+
+            //normalize the chart
+            decimal min_close_price = decimal.MaxValue;
+            decimal max_close_price = decimal.MinValue;
+            foreach (var close_price in all_close_price)
+            {
+                if (close_price < min_close_price)
+                {
+                    min_close_price = close_price;
+                }
+                if (close_price > max_close_price)
+                {
+                    max_close_price = close_price;
+                }
+
+            }
+            chart_candlestick_OHLCV.ChartAreas.RemoveAt(1);
+
+            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Minimum = (double)(min_close_price - (min_close_price * 0.02m));
+            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Maximum = (double)(max_close_price + (max_close_price * 0.02m));
+
+            // Set the X-axis labels to date format
+            chart_candlestick_OHLCV.ChartAreas[0].AxisX.LabelStyle.Format = "MM/dd/yyyy";
+            chart_candlestick_OHLCV.ChartAreas[0].AxisX.Title = "Date";
+            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Title = "Closing Price";
+
+            // Optionally set the title of the chart
+            chart_candlestick_OHLCV.Titles.Clear();
+            chart_candlestick_OHLCV.Titles.Add("Stock Closing Prices and Predictions");
         }
     }
 
