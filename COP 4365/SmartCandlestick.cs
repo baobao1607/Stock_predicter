@@ -9,7 +9,7 @@ namespace COP_4365
     /// <summary>
     /// This class represented the smartcandlestick object inherited from the Candlestick object
     /// </summary>
-    internal class SmartCandlestick : Candlestick
+    public class SmartCandlestick : Candlestick
     {
         //declare the first attribute of the Smartcandlestick object
         //this variable has decimal type and name of "Range"

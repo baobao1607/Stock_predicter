@@ -1,16 +1,19 @@
 ﻿using System;
 using System.CodeDom;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using System.Windows.Forms.VisualStyles;
+using System.Xml;
 using System.Xml.Serialization;
 using System.Xml.XPath;
 
@@ -31,6 +34,11 @@ namespace COP_4365
         List<SmartCandlestick> list_of_smartCandlesticks = null;
         // declare a list of filtered smartcandlestick This list holds the object after being filtered through the start and end date
         List<SmartCandlestick> filtered_smart_candlestick = null;
+        //declare the string of directory
+        String directory = @"C:\Users\baolam\Desktop\SPRING 2024\COP_4365_project_3\Stock_Data";
+        private List<int?> list_candlestick = new List<int?> { null, null };
+        List<WaveData> stock_data;
+        List<double> closing_price;
         /// <summary>
         /// this method is the constructor for the form that takes the input of the pathname and the datatime value of the datatime stock picker
         /// </summary>
@@ -41,7 +49,6 @@ namespace COP_4365
         {
             // intialize neccessary components for the form to start
             InitializeComponent();
-            initialize_combo_box_day();
             // initialize the list of recognizer by calling intialize_list_of_recognize
             initialize_dictionary_of_recognizer();
             // assign the start time to the input datetime start parameters
@@ -58,6 +65,8 @@ namespace COP_4365
             normalize();
             //display the candlestick
             display_CandleStick();
+            //initialize the stock data set using the initialize_stock_data method
+            stock_data = initialize_stock_data();
         }
 
         /// <summary>
@@ -68,7 +77,6 @@ namespace COP_4365
         {
             // this code initialize all the componenets and properties needed for the form to work. These componenets and properties are set up on the designer file
             InitializeComponent();
-            initialize_combo_box_day();
             //intialize a list of recognizer by calling the method intialize_list_of_recognizer
             initialize_dictionary_of_recognizer();
             // Intialize the variable "list_of_candlestick" stored in Form_Stock viewer class with a capacity of 1024 items max.
@@ -79,8 +87,57 @@ namespace COP_4365
             boundCandlestick = new BindingList<Candlestick>();
             //initialize a list of filtered smartCandlestick
             filtered_smart_candlestick = new List<SmartCandlestick>();
-            
+            stock_data = initialize_stock_data();
         }
+
+        public List<WaveData> initialize_stock_data()
+        {
+            List<WaveData> results = new List<WaveData>();
+            Analyze analyze = new Analyze();
+            string filePath = "C:\\Users\\baolam\\Desktop\\SPRING 2024\\COP_4365_project_3\\Stock_Data\\WaveDataResults.csv";
+            if (File.Exists(filePath))
+            {
+                results =  LoadFromFile(filePath);
+            } else
+            {
+                results = analyze.Analyze_File(directory);
+            }
+            return results;
+        }
+
+
+        public List<WaveData> LoadFromFile(string filePath)
+        {
+            List<WaveData> result = new List<WaveData>();
+            using (var reader = new StreamReader(filePath))
+            {
+                // Skip the header
+                reader.ReadLine();
+
+                // Read each line in the .csv file
+                while (!reader.EndOfStream)
+                {
+                    var line = reader.ReadLine();
+                    var values = line.Split(',');
+
+                    WaveData waveData = new WaveData
+                    {
+                        Type = int.Parse(values[0]),
+                        FibonacciHits = int.Parse(values[1]),
+                        Distance = int.Parse(values[2]),
+                        VolumeChange = float.Parse(values[3]),
+                        Label = int.Parse(values[4]), // If Label is boolean
+                        FirstRSI = float.Parse(values[5]),
+                        LastRSI = float.Parse(values[6]),
+                        RSI_different = float.Parse(values[7])
+                    };
+
+                    result.Add(waveData);
+                }
+            }
+            return result;
+        }
+
         /// <summary>
         /// This event-handler function describe what sequence of codes will be executed when button loader is click. 
         /// </summary>
@@ -111,7 +168,7 @@ namespace COP_4365
             // count the number of files that user has chosen and assign that to numberofffiles variable
             int numberoffiles = openFileDialog_stockPicker.FileNames.Count();
             // run a loop starts at 0 and end at the number of files user chose
-            for (int i =0; i< numberoffiles; i++)
+            for (int i = 0; i < numberoffiles; i++)
             {
                 // getting the pathname of the chosen file
                 string pathname = openFileDialog_stockPicker.FileNames[i];
@@ -120,7 +177,7 @@ namespace COP_4365
                 // creating an instance of the form-stockviewer object
                 Form_StockViewer form_StockViewer;
                 // if it is the first file that the user chose
-                if ( i == 0)
+                if (i == 0)
                 {
                     //assign the current form to the form_stockviewer object
                     form_StockViewer = this;
@@ -155,7 +212,7 @@ namespace COP_4365
         private void ReadCandleStickFromFile()
         {
             // assign the list_of_candlesticks to the return value of the "goReadFile" method. Passed in the Filename of the file that the user opened as input parameter
-           list_of_candlesticks = goReadFile(openFileDialog_stockPicker.FileName);
+            list_of_candlesticks = goReadFile(openFileDialog_stockPicker.FileName);
         }
 
         /// <summary>
@@ -169,7 +226,7 @@ namespace COP_4365
             // declare a local variable that takes the form of List that store Candlestick object
             List<Candlestick> list_of_candlesticks = new List<Candlestick>(1024);
             // declare a string to compare with the first line in the file 
-            const string referenceString = "Date,Open,High,Low,Close,Adj Close,Volume";
+            const string referenceString = "Date,Open,High,Low,Close,Volume";
             // declare a object that abstract from StreamReader class that can read the file
             using (StreamReader sr = new StreamReader(filename))
             {
@@ -181,8 +238,8 @@ namespace COP_4365
                 if (line == referenceString)
                 {
                     // if they are the same, run the while loop until read all the lines in the file
-                    while ((line = sr.ReadLine())!= null)
-                    {   
+                    while ((line = sr.ReadLine()) != null)
+                    {
                         // create a new Candlestick object taking parameters from the read line
                         Candlestick cs = new Candlestick(line);
                         // adding the object to the list of candlestick
@@ -202,12 +259,12 @@ namespace COP_4365
         /// <param name="startDate">The start date obtained from the date_time_picker</param>
         /// <param name="endDate">The end date obtained from the date_time_picker</param>
         /// <returns>the list of candlestick object that has been filtered</returns>
-        private List<Candlestick> filterCandleSticks(List<Candlestick> unfiltered_list,DateTime startDate, DateTime endDate)
+        private List<Candlestick> filterCandleSticks(List<Candlestick> unfiltered_list, DateTime startDate, DateTime endDate)
         {
             // declare a new list of candlestick object that has the same capacity as the unfiltered list
             List<Candlestick> filteredlist = new List<Candlestick>(unfiltered_list.Count());
             // run a for loop through each Candlestick object cs in the unfiltered list
-            foreach(Candlestick cs in unfiltered_list)
+            foreach (Candlestick cs in unfiltered_list)
             {
                 // if the date of this Candlestick object is less than the start date then continue to the next code
                 if (cs.date < startDate)
@@ -235,8 +292,120 @@ namespace COP_4365
             boundCandlestick = new BindingList<Candlestick>(filteredlist);
             // filter the list of smartcandlestick by calling the method filtered_list_of_smartcandlestick and assign it to the filtered_smart_candlestick
             filtered_smart_candlestick = filtered_list_of_smart_candlestick(list_of_smartCandlesticks, date_time_picker_from.Value, date_time_picker_to.Value);
-       
+
+            closing_price = Calculate_Closing_Prices(filtered_smart_candlestick);
+            // Access the static method directly using the class name
+            var (macdLine, signalLine, histogram) = MCAD.CalculateMACD(closing_price);
+
+            Display_MACD(macdLine, signalLine, histogram);
         }
+
+
+
+        private void Display_MACD(List<double> macdLine, List<double> signalLine, List<double> histogram)
+        {
+            for (int i = chart_candlestick_OHLCV.Series.Count - 1; i >= 0; i--)
+            {
+                if (chart_candlestick_OHLCV.Series[i].ChartArea == "ChartArea_MACD")
+                {
+                    chart_candlestick_OHLCV.Series.RemoveAt(i);
+                }
+            }
+            // Add a ChartArea
+            chart_candlestick_OHLCV.ChartAreas[1].AxisX.Title = "Date";
+            chart_candlestick_OHLCV.ChartAreas[1].AxisY.Title = "Value";
+            chart_candlestick_OHLCV.ChartAreas[1].AxisX.MajorGrid.Enabled = false;
+            chart_candlestick_OHLCV.ChartAreas[1].AxisX.LabelStyle.Format = "MM/dd/yyyy"; // Format dates on X-axis
+            chart_candlestick_OHLCV.ChartAreas[1].AxisY.MajorGrid.LineDashStyle = ChartDashStyle.Dash;
+
+            // Add MACD Line series
+            Series macdSeries = new Series("MACD Line")
+            {
+                ChartType = SeriesChartType.Line,
+                BorderWidth = 2,
+                Color = Color.Blue,
+                ChartArea = "ChartArea_MACD",
+                IsXValueIndexed = true
+            };
+            for (int i = 0; i < macdLine.Count; i++)
+            {
+                macdSeries.Points.AddXY(boundCandlestick[i].date, macdLine[i]);
+            }
+
+            // Add Signal Line series
+            Series signalSeries = new Series("Signal Line")
+            {
+                ChartType = SeriesChartType.Line,
+                BorderWidth = 2,
+                Color = Color.Red,
+                ChartArea = "ChartArea_MACD",
+                IsXValueIndexed = true
+            };
+            for (int i = 0; i < signalLine.Count; i++)
+            {
+                signalSeries.Points.AddXY(boundCandlestick[i].date, signalLine[i]);
+            }
+
+            // Add Histogram series
+            Series histogramSeries = new Series("Histogram")
+            {
+                ChartType = SeriesChartType.Column,
+                Color = Color.Green,
+                ChartArea = "ChartArea_MACD",
+                IsXValueIndexed = true
+            };
+            for (int i = 0; i < histogram.Count; i++)
+            {
+                histogramSeries.Points.AddXY(boundCandlestick[i].date, histogram[i]);
+            }
+
+            
+
+            // Add series to the chart
+            chart_candlestick_OHLCV.Series.Add(macdSeries);
+            chart_candlestick_OHLCV.Series.Add(signalSeries);
+            chart_candlestick_OHLCV.Series.Add(histogramSeries);
+        }
+
+
+
+        public List<double> Calculate_Closing_Prices(List<SmartCandlestick> source)
+        {
+            List<double> result = new List<double>();
+
+
+            // Define the start and end SmartCandlesticks
+            SmartCandlestick start_scs = source[0]; // First element in the source
+            int starting_index = -1;
+
+            // Find the index of start_scs in the main candlestick list
+            for (int i = 0; i < list_of_smartCandlesticks.Count; i++)
+            {
+                if (list_of_smartCandlesticks[i].date == start_scs.date)
+                {
+                    starting_index = i;
+                    break;
+                }
+            }
+
+            // Calculate the starting index for historical data (26 periods before)
+            int need_index = Math.Max(0, starting_index - 35);
+
+            // Add historical data (if available)
+            for (int i = need_index; i < starting_index; i++)
+            {
+                result.Add((double)list_of_smartCandlesticks[i].close);
+            }
+
+            // Add the closing prices from the source list
+            foreach (var candlestick in source)
+            {
+                result.Add((double)candlestick.close);
+            }
+
+            return result;
+        }
+
 
         /// <summary>
         /// this display function takes in a binding list of the candlestick object, bind the binding list to the data grid view and the chart 
@@ -349,7 +518,7 @@ namespace COP_4365
             // count the number of data points on the first series of the chart
             int numberofpoints = chart_candlestick_OHLCV.Series["Series_OHLC"].Points.Count;
             //running through each point of data on the chart
-            for (int i = 0; i< numberofpoints; i++)
+            for (int i = 0; i < numberofpoints; i++)
             {
                 //assign smartcandlestick object to the index of the filtered_smart_candlestick
                 SmartCandlestick csc = filtered_smart_candlestick[i];
@@ -362,22 +531,10 @@ namespace COP_4365
                     if (pattern_length == 1)
                     {
                         //add arrow annotation to that smartcandlestick object
-                        add_arrow_annotation(i,csc);
+                        add_arrow_annotation(i, csc);
                     }
                     // if the pattern length is 2
                     else if (pattern_length == 2)
-                    {
-                        //add arrow annotation to that smartcandlestick object
-                        add_arrow_annotation(i,csc);
-                        //add another arrow annotation to the smartcandlestick stands before the current one
-                        //first check if this smartcandlestick object is out of bound or not
-                        if (i - 1 >= 0)
-                        {
-                            add_arrow_annotation(i - 1, filtered_smart_candlestick[i - 1]);
-                        } 
-                    } 
-                    // if the pattern length is 3
-                    else
                     {
                         //add arrow annotation to that smartcandlestick object
                         add_arrow_annotation(i, csc);
@@ -387,12 +544,12 @@ namespace COP_4365
                         {
                             add_arrow_annotation(i - 1, filtered_smart_candlestick[i - 1]);
                         }
-                        //add another arrow annotation to the smartcandlestick stands after the current one
-                        //first check if this smartcandlestick object is out of bound or not
-                        if (i + 1 < filtered_smart_candlestick.Count())
-                        {
-                            add_arrow_annotation(i + 1, filtered_smart_candlestick[i + 1]);
-                        }
+                    }
+                    // if the pattern length is 3
+                    else
+                    {
+                        //add arrow annotation to that smartcandlestick object
+                        add_arrow_annotation(i, csc);
                     }
                 }
             }
@@ -431,7 +588,7 @@ namespace COP_4365
                 r.RecognizeAll(list_of_smartCandlesticks);
             }
         }
-        private List<SmartCandlestick> filtered_list_of_smart_candlestick(List<SmartCandlestick> source,DateTime startDate, DateTime endDate)
+        private List<SmartCandlestick> filtered_list_of_smart_candlestick(List<SmartCandlestick> source, DateTime startDate, DateTime endDate)
         {
             // declare a new list of candlestick object that has the same capacity as the unfiltered list
             List<SmartCandlestick> filteredlist = new List<SmartCandlestick>(source.Count());
@@ -521,7 +678,7 @@ namespace COP_4365
                 // set the position of the annotation above the candlestick
                 arrowAnnotation.Y = (chart_candlestick_OHLCV.ChartAreas[0].AxisY.Maximum + (double)(csc.topPrice)) * 0.5;
                 // set the height to negative so it point down
-                arrowAnnotation.Height = -7;
+                arrowAnnotation.Height = -12;
                 // otherwise, if the candlestick lean more the top of the chart
             }
             else
@@ -529,111 +686,159 @@ namespace COP_4365
                 // set the position of the annotation below the candlestick
                 arrowAnnotation.Y = (chart_candlestick_OHLCV.ChartAreas[0].AxisY.Minimum + (double)(csc.bottomPrice)) * 0.5;
                 // set the height to postivie so it point up
-                arrowAnnotation.Height = 7;
+                arrowAnnotation.Height = 12;
             }
             // add the annotation to the collection of the annotations
             chart_candlestick_OHLCV.Annotations.Add(arrowAnnotation);
         }
 
-
-        private void initialize_combo_box_day()
+        private void button_Train_Click(object sender, EventArgs e)
         {
-            comboBox1.Items.Add("5");
-            comboBox1.Items.Add("10");
-        }
-
-        private void button_Predict_Click(object sender, EventArgs e)
-        {
-            if (!int.TryParse(comboBox1.SelectedItem?.ToString(), out int daysToConsider))
+            Training trainer = new Training(stock_data);
+            List<WaveData> newWave = get_Wave();
+            if (newWave.Count == 0)
             {
-                MessageBox.Show("Please select a valid number of days.");
                 return;
-            }
-            int stock_count = list_of_smartCandlesticks.Count;
-            int start_index = Math.Max(stock_count - 10, 0);
-            int stock_traverse_count = stock_count - start_index;
-            int sum_day = stock_traverse_count * (stock_traverse_count + 1) / 2;
-            decimal sum_close_price = 0;
-            decimal sum_close_price_squared = 0;
-            decimal sum_close_price_times_day = 0;
-            for (int i = start_index; i < stock_count; i++) 
-            {
-                var cs = list_of_candlesticks[i];
-                sum_close_price += cs.close;
-                sum_close_price_squared += cs.close * cs.close;
-                int day = i - start_index + 1;
-                sum_close_price_times_day += day * cs.close;
-            }
-            decimal m = (stock_traverse_count * sum_close_price_times_day - sum_day * sum_close_price) /
-                 (stock_traverse_count * sum_close_price_squared - (sum_close_price * sum_close_price));
-            decimal b = (sum_close_price - m * sum_day) / stock_traverse_count;
-            DateTime last_date = list_of_candlesticks[list_of_candlesticks.Count - 1].date;
-            chart_candlestick_OHLCV.Series.Clear();
-            List<decimal> all_close_price = new List<decimal>();
-            // Create a series for actual closing prices
-            var actualSeries = new Series("Actual Closing Prices")
-            {
-                ChartType = SeriesChartType.Line
-            };
-
-            // Add the last closing prices to the chart
-            int actualStartIndex = Math.Max(stock_count - 10, 0);
-            for (int i = actualStartIndex; i < stock_count; i++)
-            {
-                var cs = list_of_smartCandlesticks[i];
-                actualSeries.Points.AddXY(cs.date, cs.close);
-                all_close_price.Add(cs.close);
-            }
-
-            // Create a series for predicted closing prices
-            var predictedSeries = new Series("Predicted Closing Prices")
-            {
-                ChartType = SeriesChartType.Line,
-                Color = Color.Red // Different color for predictions
-            };
-
-            // Add predicted closing prices to the chart
-            for (int i = 1; i <= daysToConsider; i++)
-            {
-                decimal predictedClosePrice = m * (stock_traverse_count + i) + b;
-                predictedSeries.Points.AddXY(last_date.AddDays(i), predictedClosePrice);
-                all_close_price.Add(predictedClosePrice);
-            }
-
-            // Add both series to the chart
-            chart_candlestick_OHLCV.Series.Add(actualSeries);
-            chart_candlestick_OHLCV.Series.Add(predictedSeries);
-
-            //normalize the chart
-            decimal min_close_price = decimal.MaxValue;
-            decimal max_close_price = decimal.MinValue;
-            foreach (var close_price in all_close_price)
-            {
-                if (close_price < min_close_price)
-                {
-                    min_close_price = close_price;
-                }
-                if (close_price > max_close_price)
-                {
-                    max_close_price = close_price;
-                }
-
-            }
-            chart_candlestick_OHLCV.ChartAreas.RemoveAt(1);
-
-            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Minimum = (double)(min_close_price - (min_close_price * 0.02m));
-            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Maximum = (double)(max_close_price + (max_close_price * 0.02m));
-
-            // Set the X-axis labels to date format
-            chart_candlestick_OHLCV.ChartAreas[0].AxisX.LabelStyle.Format = "MM/dd/yyyy";
-            chart_candlestick_OHLCV.ChartAreas[0].AxisX.Title = "Date";
-            chart_candlestick_OHLCV.ChartAreas[0].AxisY.Title = "Closing Price";
-
-            // Optionally set the title of the chart
-            chart_candlestick_OHLCV.Titles.Clear();
-            chart_candlestick_OHLCV.Titles.Add("Stock Closing Prices and Predictions");
+            } 
+            trainer.Train(newWave);
+            list_candlestick = new List<int?> { null, null };
+            chart_candlestick_OHLCV.Annotations.Clear();
         }
-    }
 
+        private List<WaveData> get_Wave()
+        {
+            List<WaveData> newWave = new List<WaveData>();
+            int type = -1;
+            bool result = false ;
+            if (list_candlestick[0].HasValue && list_candlestick[1].HasValue)
+            {
+                int first_index = list_candlestick[0].Value;
+                int second_index = list_candlestick[1].Value;
+                Recognizer_Peak recognizer = new Recognizer_Peak();
+                Recognizer_Valley recognizer_valley = new Recognizer_Valley();
+                Analyze analyze = new Analyze();
+                List<double> closing_price = analyze.get_closing_price(list_of_smartCandlesticks);
+                var (macdLine, signalLine, histogram) = MCAD.CalculateMACD_DataSet(closing_price);
+                if (recognizer.Recognize(list_of_smartCandlesticks, first_index))
+                {
+                    type = 1;
+                    result = analyze.IsValidWave(first_index, second_index, list_of_smartCandlesticks, type);
+                }
+                else if (recognizer_valley.Recognize(list_of_smartCandlesticks, first_index))
+                {
+                    type = 0;
+                    result = analyze.IsValidWave(first_index, second_index, list_of_smartCandlesticks, type);
+                }
+                else 
+                {
+                    result = false;
+                }
+                if (!result)
+                {
+                    MessageBox.Show("This is an invalid wave");
+                    list_candlestick = new List<int?> { null, null };
+                    chart_candlestick_OHLCV.Annotations.Clear();
+                }
+                else
+                {
+
+                    int index = second_index - first_index + 1;
+                    int fibonacci_hits = analyze.get_fibonnaci_hit(first_index, second_index, list_of_smartCandlesticks, type);
+                    float volume_change = analyze.Calculate_Volume(first_index, second_index, list_of_smartCandlesticks);
+                    decimal first_rsi = analyze.Calculate_RSI(list_of_smartCandlesticks, first_index);
+                    decimal second_rsi = analyze.Calculate_RSI(list_of_smartCandlesticks, second_index);
+                    decimal rsi_different = second_rsi - first_rsi;
+                    int crossover = analyze.calculate_crossover(second_index, macdLine, signalLine);
+
+                    int bullish_divergence = analyze.calculate_bullish(list_of_smartCandlesticks, macdLine, second_index);
+                    int bearish_divergence = analyze.calculate_bearish(list_of_smartCandlesticks, macdLine, second_index);
+
+                    int zero_line_position = analyze.calculate_zero_line_position(macdLine[second_index]);
+                    int MACD_distance = analyze.CalculateMACDCrossoverDistance(macdLine, signalLine, second_index);
+
+
+                    float MACD_distance_zero = analyze.CalculateMACDDistanceFromZero(macdLine[second_index]);
+                    WaveData wave = new WaveData
+                    {
+                        Type = type,                      
+                        Distance = index,                  
+                        FibonacciHits = fibonacci_hits,  
+                        VolumeChange = volume_change,
+                        FirstRSI = (float)first_rsi,
+                        LastRSI = (float)second_rsi,
+                        RSI_different = (float)rsi_different,
+                        MACDLine = (float)(macdLine[second_index]),
+                        SignalLine = (float)(signalLine[second_index]),
+                        MACDHistogram = (float)(histogram[second_index]),
+                        MACDSignalCrossover = crossover,
+                        BearishDivergence = bearish_divergence,
+                        BullishDivergence = bullish_divergence,
+                        MACDZeroLinePosition = zero_line_position,
+                        MACDCrossoverDistance = MACD_distance,
+                        MACDDistanceFromZero = MACD_distance_zero
+                    };
+                    newWave.Add(wave);
+                }
+            } 
+            else
+            {
+                MessageBox.Show("Please select a wave");
+            }
+            return newWave;
+        }
+
+        private void chart_candlestick_OHLCV_MouseClick(object sender, MouseEventArgs e)
+        {
+            HitTestResult hitResult = chart_candlestick_OHLCV.HitTest(e.X, e.Y);
+            if (hitResult.ChartElementType == ChartElementType.DataPoint)
+            {
+                HandleCandlestickClick(hitResult);
+            }
+            else
+            {
+                MessageBox.Show("You clicked on a non-candlestick element.");
+            }
+        }
+
+        private void HandleCandlestickClick(HitTestResult hitResult)
+        {
+            // Find the index of the clicked candlestick
+            int index = -1;
+            int data_point = -1;
+            for (int i = 0; i < list_of_smartCandlesticks.Count; i++)
+            {
+                if (list_of_smartCandlesticks[i].date == DateTime.FromOADate(hitResult.Series.Points[hitResult.PointIndex].XValue))
+                {
+                    index = i;
+                    break;
+                }
+            }
+            for (int i = 0; i <= filtered_smart_candlestick.Count; i++)
+            {
+                if (filtered_smart_candlestick[i].date == DateTime.FromOADate(hitResult.Series.Points[hitResult.PointIndex].XValue))
+                {
+                    data_point = i;
+                    break;
+                }
+            }
+            // If the index is valid, update the list
+            if (index != -1)
+            {
+                if (list_candlestick[0] == null)
+                {
+                    list_candlestick[0] = index;
+                    MessageBox.Show($"First candlestick clicked");
+                    add_arrow_annotation(data_point, filtered_smart_candlestick[data_point]);
+                }
+                else if (list_candlestick[1] == null)
+                {
+                    list_candlestick[1] = index;
+                    MessageBox.Show($"Second candlestick clicked");
+                    add_arrow_annotation(data_point, filtered_smart_candlestick[data_point]);
+                }
+            }
+        }
+
+    }
 }
 

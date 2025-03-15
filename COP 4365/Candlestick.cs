@@ -12,7 +12,7 @@ namespace COP_4365
 {   /// <summary>
     /// this class represents for the candlestick object. A candlestick object has 6 properties and a constructor to intialize an instance of the Candlestick object
     /// </summary>
-    internal class Candlestick
+    public class Candlestick
     {   
         //declare the first attribute of the candlestick object
         //this variable has datatime type and name of "date"
@@ -108,7 +108,7 @@ namespace COP_4365
             ulong tempVolume;
             //tryparsing the value of subs[6] to tempVolume
             //assign the boolean success to the tryparse method
-            success = ulong.TryParse(subs[6], out tempVolume);
+            success = ulong.TryParse(subs[5], out tempVolume);
             // if the condition holds, assign tempvolume to volume
             if (success) volume = tempVolume;
         }
