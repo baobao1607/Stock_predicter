@@ -162,10 +162,10 @@
             this.panel1.Controls.Add(this.date_time_picker_from);
             this.panel1.Controls.Add(this.label_end_at);
             this.panel1.Controls.Add(this.Label_from);
-            this.panel1.Location = new System.Drawing.Point(14, 469);
+            this.panel1.Location = new System.Drawing.Point(11, 499);
             this.panel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(1241, 122);
+            this.panel1.Size = new System.Drawing.Size(1241, 92);
             this.panel1.TabIndex = 14;
             // 
             // button_Train
